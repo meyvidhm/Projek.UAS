@@ -158,11 +158,30 @@ server <- function(input, output, session) {
     rv$data <- data.frame(perlakuan, respon)
     
     output$tabel_kontingensi <- renderTable({
-      df$id <- ave(df$perlakuan, df$perlakuan, FUN=seq_along)
-      df_wide <- tidyr::pivot_wider(df, names_from = perlakuan, values_from = respon, values_fill = NA)
+      req(rv$data, input$kol_perlakuan, input$kol_respon)
+      
+      df <- rv$data
+      perlakuan_col <- input$kol_perlakuan
+      respon_col <- input$kol_respon
+      
+      # salin ke kolom baru 
+      df$Perlakuan_fix <- as.factor(df[[perlakuan_col]])
+      df$Respon_fix <- df[[respon_col]]
+      
+      # menambahkan kolom ulangan
+      df <- df %>%
+        group_by(Perlakuan_fix) %>%
+        mutate(Ulangan = row_number()) %>%
+        ungroup()
+      
+      # ubah ke format wide
+      df_wide <- reshape2::dcast(df, Ulangan ~ Perlakuan_fix, value.var = "Respon_fix")
+      
+      # ganti nama kolom yang pertama yaa
       colnames(df_wide)[1] <- "Ulangan ke-"
+      
       df_wide
-    }, striped = TRUE, bordered = TRUE)
+    }, rownames = FALSE)
   })
   
   output$ukuran_input <- renderUI({
