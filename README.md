@@ -1,63 +1,155 @@
 # Projek.UAS
 Projek UAS Kelompok 6
+# ===============================
+# === LIBRARY
+# ===============================
 library(shiny)
+library(shinydashboard)
 library(readxl)
 library(dplyr)
 library(tidyr)
 library(car)
 library(agricolae)
+library(reshape2)
 
-ui <- navbarPage("Aplikasi RAL", id = "navbar",
-                 tabPanel("1. Tentang RAL",
-                          fluidPage(
-                            h3("Rancangan Acak Lengkap (RAL)"),
-                            p("RAL digunakan saat kondisi percobaan homogen. Perlakuan diberikan secara acak ke unit percobaan."),
-                            p("Kegunaan: (1) menyederhanakan rancangan, (2) memudahkan analisis, (3) cocok untuk kondisi seragam."),
-                            h4("Struktur Data yang Diperlukan"),
-                            tableOutput("contoh_tabel_struktur"),
-                            h4("Contoh Tabel Kontingensi (Perlakuan x Ulangan)"),
-                            tableOutput("contoh_tabel"),
-                            h4("Penjelasan Uji Lanjut"),
-                            tags$ul(
-                              tags$li(strong("BNT (LSD):"), " Menguji beda nyata antar perlakuan tanpa penyesuaian. Peka tapi cenderung overdeteksi."),
-                              tags$li(strong("BNJ (HSD):"), " Gunakan ketika banyak perlakuan. Lebih konservatif daripada BNT."),
-                              tags$li(strong("Duncan:"), " Lebih peka dari BNJ, membentuk grup perlakuan yang beda nyata secara bertingkat."),
-                              tags$li(strong("SNK:"), " Menguji beda dengan mempertimbangkan jarak urutan rata-rata. Lebih ketat dari Duncan."),
-                              tags$li(strong("Scheffe:"), " Paling konservatif, cocok untuk perbandingan kompleks atau data tidak seimbang.")
-                            )
-                          )
-                 ),
-                 
-                 tabPanel("2. Validasi Data",
-                          fluidPage(
-                            fileInput("datafile", "Upload file CSV atau Excel", accept = c(".csv", ".xlsx")),
-                            numericInput("alpha", "Nilai alpha:", value = 0.05, min = 0.001, max = 0.1, step = 0.001),
-                            uiOutput("pilih_kolom"),
-                            actionButton("validasi_btn", "Validasi Data"),
-                            verbatimTextOutput("validasi_output"),
-                            verbatimTextOutput("ringkasan_output"),
-                            tableOutput("tabel_kontingensi"),
-                            checkboxInput("independen", "Saya menyatakan data ini independen", value = FALSE)
-                          )
-                 ),
-                 
-                 tabPanel("3. Uji Hipotesis",
-                          fluidPage(
-                            uiOutput("ukuran_input"),
-                            verbatimTextOutput("hipotesis"),
-                            verbatimTextOutput("anova_output"),
-                            verbatimTextOutput("keputusan_output"),
-                            uiOutput("lanjut_uji")
-                          )
-                 ),
-                 
-                 tabPanel("4. Uji Lanjut",
-                          fluidPage(
-                            uiOutput("lanjut_isi")
-                          )
-                 )
+# ===============================
+# === UI
+# ===============================
+ui <- dashboardPage(
+  dashboardHeader(title = "Aplikasi RAL"),
+  
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem("1. Tentang RAL", tabName = "tentang", icon = icon("info-circle")),
+      menuItem("2. Validasi Data", tabName = "validasi", icon = icon("check-circle")),
+      menuItem("3. Uji Hipotesis", tabName = "uji", icon = icon("flask")),
+      menuItem("4. Uji Lanjut", tabName = "lanjut", icon = icon("chart-bar"))
+    )
+  ),
+  
+  dashboardBody(
+    tags$head(
+      tags$link(rel = "stylesheet", href = "https://fonts.googleapis.com/css2?family=Roboto&display=swap"),
+      tags$style(HTML("
+        body, h1, h2, h3, h4, h5, p, label {
+          font-family: 'Roboto', sans-serif;
+        }
+      "))
+    ),
+    
+    tabItems(
+      tabItem(tabName = "tentang",
+              fluidRow(
+                column(width = 6,
+                       box(title = "Penjelasan Teori RAL", width = 12, status = "primary", solidHeader = TRUE,
+                           h3("Rancangan Acak Lengkap (RAL)"),
+                           p("RAL adalah dasar dari berbagai desain percobaan. Konsepnya: setiap unit percobaan diberikan perlakuan secara acak penuh, tanpa pengelompokan."),
+                           tags$ul(
+                             tags$li(strong("Homogenitas Unit:"), " Semua unit harus seragam."),
+                             tags$li(strong("Pengacakan Penuh:"), " Setiap perlakuan diacak ke unit."),
+                             tags$li(strong("Satu Sumber Keragaman:"), " Efek perlakuan & galat."),
+                             tags$li(strong("Sederhana & Fleksibel:"), " Mudah dirancang dan dianalisis.")
+                           ),
+                           h4("Tujuan RAL"),
+                           tags$ul(
+                             tags$li("Melihat pengaruh perlakuan."),
+                             tags$li("Membandingkan antar perlakuan."),
+                             tags$li("Menarik kesimpulan valid dari hasil eksperimen.")
+                           ),
+                           h4("Syarat Penting"),
+                           tags$ul(
+                             tags$li("Unit dan lingkungan homogen."),
+                             tags$li("Galat menyebar normal dan homogen."),
+                             tags$li("Observasi saling independen.")
+                           ),
+                           p("Jika kondisi tidak homogen, gunakan RAK.")
+                       )
+                ),
+                column(width = 6,
+                       box(title = "Struktur Data yang Diperlukan", width = 12, tableOutput("contoh_tabel_struktur")),
+                       box(title = "Contoh Tabel Kontingensi", width = 12, tableOutput("contoh_tabel"))
+                )
+              ),
+              fluidRow(
+                box(title = "Penjelasan Uji Lanjut", width = 12, status = "info", solidHeader = TRUE,
+                    h4("Uji Lanjut (Post Hoc) Setelah ANOVA"),
+                    p("Jika ANOVA signifikan, gunakan uji lanjut untuk mengetahui perlakuan mana yang berbeda."),
+                    tags$ul(
+                      tags$li(strong("BNT (LSD):"), " sensitif, cocok untuk perlakuan sedikit."),
+                      tags$li(strong("BNJ (HSD Tukey):"), " konservatif, cocok banyak perlakuan."),
+                      tags$li(strong("Duncan:"), " membentuk grup berbeda bertingkat."),
+                      tags$li(strong("SNK:"), " berdasarkan urutan rata-rata."),
+                      tags$li(strong("Scheffe:"), " paling konservatif, untuk perbandingan kompleks.")
+                    )
+                )
+              ),
+              fluidRow(
+                box(title = "Rumus ANOVA & Uji Lanjut", width = 12, status = "warning", solidHeader = TRUE,
+                    withMathJax(HTML("
+              <b>Model:</b><br>
+              $$ Y_{ij} = \\mu + \\tau_i + \\epsilon_{ij} $$
+              <b>Komponen Ragam:</b><br>
+              $$ SST = \\sum (Y_{ij} - \\bar{Y}_{..})^2 $$
+              $$ SSA = r \\sum (\\bar{Y}_{i.} - \\bar{Y}_{..})^2 $$
+              $$ SSE = SST - SSA $$
+              $$ F = \\frac{SSA/(a-1)}{SSE/(a(r-1))} $$
+              <b>Uji Lanjut:</b><br>
+              $$ BNT = t_{\\alpha/2, df} \\cdot \\sqrt{\\frac{2 \\cdot MSE}{r}} $$<br>
+              $$ HSD = q_{\\alpha, a, df} \\cdot \\sqrt{\\frac{MSE}{r}} $$<br>
+              $$ D_{ij} = r_{ij} \\cdot SE \\quad (Duncan) $$<br>
+              $$ SNK = q_{ij} \\cdot SE $$<br>
+              $$ S = (a - 1) \\cdot F_{\\alpha, a-1, df} \\cdot \\frac{MSE}{r} \\quad (Scheffe) $$
+            "))
+                )
+              )
+      ),
+      
+      tabItem(tabName = "validasi",
+              fluidRow(
+                box(title = "Upload & Input", width = 4, status = "info",
+                    fileInput("datafile", "Upload file CSV atau Excel", accept = c(".csv", ".xlsx")),
+                    numericInput("alpha", "Nilai alpha:", 0.05, 0.001, 0.1, 0.001),
+                    uiOutput("pilih_kolom"),
+                    actionButton("validasi_btn", "Validasi Data"),
+                    checkboxInput("independen", "Saya menyatakan data ini independen", FALSE)
+                ),
+                box(title = "Hasil Validasi", width = 8,
+                    verbatimTextOutput("validasi_output"),
+                    verbatimTextOutput("ringkasan_output"),
+                    tableOutput("tabel_kontingensi"),
+                    plotOutput("boxplot_data")
+                )
+              )
+      ),
+      
+      tabItem(tabName = "uji",
+              fluidRow(
+                box(title = "Uji ANOVA", width = 6, status = "primary",
+                    uiOutput("ukuran_input"),
+                    verbatimTextOutput("hipotesis"),
+                    verbatimTextOutput("anova_output"),
+                    verbatimTextOutput("keputusan_output")
+                ),
+                box(title = "Lanjut ke Uji Lanjut?", width = 6,
+                    uiOutput("lanjut_uji")
+                )
+              )
+      ),
+      
+      tabItem(tabName = "lanjut",
+              fluidRow(
+                box(title = "Hasil Uji Lanjut", width = 12,
+                    uiOutput("lanjut_isi")
+                )
+              )
+      )
+    )
+  )
 )
 
+# ===============================
+# === SERVER
+# ===============================
 server <- function(input, output, session) {
   rv <- reactiveValues(data=NULL, hasil_anova=NULL, anova_p=NULL, valid=FALSE, kol_perl=NULL, kol_resp=NULL)
   
@@ -94,94 +186,53 @@ server <- function(input, output, session) {
       `Pupuk B` = c(17.1, 16.9, 17.5),
       `Pupuk C` = c(12.5, 12.8, 12.0)
     )
-  }, striped = TRUE, bordered = TRUE)
+  })
   
   observeEvent(input$validasi_btn, {
     req(rv$data, input$kol_perlakuan, input$kol_respon)
-    df <- rv$data
-    rv$kol_perl <- input$kol_perlakuan
-    rv$kol_resp <- input$kol_respon
     
-    perlakuan <- as.factor(df[[rv$kol_perl]])
-    respon <- df[[rv$kol_resp]]
-    alpha <- input$alpha
-    
-    if (any(is.na(perlakuan)) || any(is.na(respon))) {
-      output$validasi_output <- renderText("❌ Ada nilai hilang. Harap periksa kembali.")
-      rv$valid <- FALSE
-      return()
-    }
-    if (!is.numeric(respon)) {
+    if (input$kol_perlakuan == input$kol_respon || !is.numeric(rv$data[[input$kol_respon]])) {
       output$validasi_output <- renderText("❌ Respon harus numerik.")
+      output$ringkasan_output <- renderPrint({})
+      output$tabel_kontingensi <- renderTable({})
+      output$boxplot_data <- renderPlot({})
       rv$valid <- FALSE
       return()
     }
     
-    df <- data.frame(perlakuan, respon)
-    tab <- table(perlakuan)
-    n_perlakuan <- length(tab)
-    seimbang <- length(unique(tab)) == 1
-    
-    norm_res <- by(df$respon, df$perlakuan, function(x) {
-      if (length(unique(x)) == 1) return("Tidak bisa diuji")
-      pval <- shapiro.test(x)$p.value
-      if (pval > alpha) paste0("p = ", round(pval,4), " > ", alpha, " → ✅ Normal")
-      else paste0("p = ", round(pval,4), " ≤ ", alpha, " → ⚠️ Tidak Normal")
-    })
-    
-    levene <- leveneTest(respon ~ perlakuan, data = df)
-    pval_levene <- levene$`Pr(>F)`[1]
-    interpretasi_levene <- ifelse(pval_levene > alpha,
-                                  paste0("p = ", round(pval_levene, 4), " > ", alpha, " → ✅ Variansi homogen"),
-                                  paste0("p = ", round(pval_levene, 4), " ≤ ", alpha, " → ⚠️ Variansi tidak homogen"))
-    
-    output$ringkasan_output <- renderPrint({
-      cat("Jumlah Perlakuan:", n_perlakuan, "\n")
-      print(tab)
-      cat("\nNormalitas:\n")
-      print(norm_res)
-      cat("\nUji Levene:\n")
-      print(interpretasi_levene)
-    })
-    
-    if (n_perlakuan < 2) {
-      output$validasi_output <- renderText("❌ Harus ada minimal 2 perlakuan.")
-      rv$valid <- FALSE
-    } else if (!seimbang) {
-      output$validasi_output <- renderText("⚠️ Data tidak seimbang. Interpretasi ANOVA lebih hati-hati.")
-      rv$valid <- TRUE
-    } else {
-      output$validasi_output <- renderText("✅ Data valid. Lanjut ke tab Uji Hipotesis.")
-      rv$valid <- TRUE
-    }
-    
+    df <- rv$data
+    perlakuan <- as.factor(df[[input$kol_perlakuan]])
+    respon <- df[[input$kol_respon]]
     rv$data <- data.frame(perlakuan, respon)
     
+    alpha <- input$alpha
+    tab <- table(perlakuan)
+    norm_res <- by(respon, perlakuan, function(x) {
+      if (length(unique(x)) == 1) return("Tidak bisa diuji")
+      p <- shapiro.test(x)$p.value
+      if (p > alpha) paste0("p = ", round(p, 4), " > ", alpha, " → ✅ Normal")
+      else paste0("p = ", round(p, 4), " ≤ ", alpha, " → ⚠️ Tidak Normal")
+    })
+    levene <- leveneTest(respon ~ perlakuan, data = rv$data)
+    output$ringkasan_output <- renderPrint({
+      print(tab)
+      print(norm_res)
+      cat("Levene Test: p =", round(levene$`Pr(>F)`[1], 4))
+    })
+    
     output$tabel_kontingensi <- renderTable({
-      req(rv$data, input$kol_perlakuan, input$kol_respon)
-      
+      df <- rv$data %>% group_by(perlakuan) %>% mutate(Ulangan = row_number()) %>% ungroup()
+      dcast(df, Ulangan ~ perlakuan, value.var = "respon")
+    })
+    
+    output$boxplot_data <- renderPlot({
       df <- rv$data
-      perlakuan_col <- input$kol_perlakuan
-      respon_col <- input$kol_respon
-      
-      # salin ke kolom baru 
-      df$Perlakuan_fix <- as.factor(df[[perlakuan_col]])
-      df$Respon_fix <- df[[respon_col]]
-      
-      # menambahkan kolom ulangan
-      df <- df %>%
-        group_by(Perlakuan_fix) %>%
-        mutate(Ulangan = row_number()) %>%
-        ungroup()
-      
-      # ubah ke format wide
-      df_wide <- reshape2::dcast(df, Ulangan ~ Perlakuan_fix, value.var = "Respon_fix")
-      
-      # ganti nama kolom yang pertama yaa
-      colnames(df_wide)[1] <- "Ulangan ke-"
-      
-      df_wide
-    }, rownames = FALSE)
+      boxplot(respon ~ perlakuan, data = df, col = "lightblue", main = "Boxplot Respon per Perlakuan",
+              xlab = "Perlakuan", ylab = "Respon")
+    })
+    
+    rv$valid <- TRUE
+    output$validasi_output <- renderText("✅ Data valid. Lanjut ke tab Uji Hipotesis.")
   })
   
   output$ukuran_input <- renderUI({
@@ -189,13 +240,9 @@ server <- function(input, output, session) {
     selectInput("ukuran", "Ukuran Matriks:", choices = paste0(2:6, "x", 2:6))
   })
   
-  output$hipotesis <- renderText({
-    req(rv$valid)
-    "H0: Tidak ada pengaruh perlakuan\nH1: Ada pengaruh perlakuan"
-  })
+  output$hipotesis <- renderText({ "H0: Tidak ada pengaruh perlakuan\nH1: Ada pengaruh perlakuan" })
   
   output$anova_output <- renderPrint({
-    req(rv$valid)
     hasil <- aov(respon ~ perlakuan, data = rv$data)
     rv$hasil_anova <- hasil
     rv$anova_p <- summary(hasil)[[1]][["Pr(>F)"]][1]
@@ -203,45 +250,38 @@ server <- function(input, output, session) {
   })
   
   output$keputusan_output <- renderPrint({
-    req(rv$anova_p)
     if (rv$anova_p <= input$alpha) {
-      cat("p =", round(rv$anova_p,4), "≤", input$alpha, "→ Tolak H0: Ada pengaruh perlakuan.")
+      cat("Tolak H0: Ada pengaruh perlakuan.")
     } else {
-      cat("p =", round(rv$anova_p,4), ">", input$alpha, "→ Gagal tolak H0: Tidak cukup bukti adanya pengaruh perlakuan.")
+      cat("Gagal tolak H0: Tidak ada pengaruh perlakuan.")
     }
   })
   
   output$lanjut_uji <- renderUI({
     req(rv$anova_p <= input$alpha)
-    radioButtons("uji_lanjut", "Lakukan uji lanjut?", choices = c("Tidak", "Iya"))
+    radioButtons("uji_lanjut", "Lakukan uji lanjut?", c("Tidak", "Iya"))
   })
   
   output$lanjut_isi <- renderUI({
-    req(rv$anova_p)
-    if (rv$anova_p > input$alpha) return(HTML("<b>Uji lanjut tidak dilakukan karena H₀ gagal ditolak.</b>"))
-    req(input$uji_lanjut)
-    if (input$uji_lanjut == "Tidak") {
-      verbatimTextOutput("tidak_lanjut")
-    } else {
-      tagList(
-        selectInput("jenis_uji", "Jenis Uji Lanjut:", choices = c("BNT", "BNJ", "Duncan", "SNK", "Scheffe")),
-        verbatimTextOutput("uji_lanjut_output")
-      )
-    }
+    req(input$uji_lanjut == "Iya")
+    tagList(
+      selectInput("jenis_uji", "Jenis Uji Lanjut:", choices = c("BNT", "BNJ", "Duncan", "SNK", "Scheffe")),
+      verbatimTextOutput("uji_lanjut_output")
+    )
   })
   
-  output$tidak_lanjut <- renderText({ "Tidak dilakukan uji lanjut." })
-  
   output$uji_lanjut_output <- renderPrint({
-    req(rv$hasil_anova)
     switch(input$jenis_uji,
-           "BNT" = print(LSD.test(rv$hasil_anova, "perlakuan", p.adj="none")),
-           "BNJ" = print(HSD.test(rv$hasil_anova, "perlakuan")),
-           "Duncan" = print(duncan.test(rv$hasil_anova, "perlakuan")),
-           "SNK" = print(SNK.test(rv$hasil_anova, "perlakuan")),
-           "Scheffe" = print(scheffe.test(rv$hasil_anova, "perlakuan"))
+           "BNT" = LSD.test(rv$hasil_anova, "perlakuan", p.adj = "none"),
+           "BNJ" = HSD.test(rv$hasil_anova, "perlakuan"),
+           "Duncan" = duncan.test(rv$hasil_anova, "perlakuan"),
+           "SNK" = SNK.test(rv$hasil_anova, "perlakuan"),
+           "Scheffe" = scheffe.test(rv$hasil_anova, "perlakuan")
     )
   })
 }
 
+# ===============================
+# === APP
+# ===============================
 shinyApp(ui, server)
