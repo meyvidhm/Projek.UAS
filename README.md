@@ -201,15 +201,20 @@ server <- function(input, output, session) {
     
     df <- data.frame(
       perlakuan = as.factor(rv$data[[input$kol_perlakuan]]),
-      respon = rv$data[[input$kol_respon]]
+      respon = as.numeric(as.character(rv$data[[input$kol_respon]]))
     )
     rv$data <- df
     alpha <- input$alpha
     norm_res <- by(df$respon, df$perlakuan, function(x) {
-      if (length(unique(x)) == 1) return("Tidak bisa diuji")
-      p <- shapiro.test(x)$p.value
-      if (p > alpha) paste0("p = ", round(p, 4), " > ", alpha, " → ✅ Normal")
-      else paste0("p = ", round(p, 4), " ≤ ", alpha, " → ⚠️ Tidak Normal")
+      if (length(x) < 3) {
+        return("❌ Ulangan < 3 → Tidak bisa diuji normalitas")
+      } else if (length(unique(x)) == 1) {
+        return("⚠️ Data konstan → Tidak bisa diuji")
+      } else {
+        p <- shapiro.test(x)$p.value
+        if (p > alpha) paste0("p = ", round(p, 4), " > ", alpha, " → ✅ Normal")
+        else paste0("p = ", round(p, 4), " ≤ ", alpha, " → ⚠️ Tidak Normal")
+      }
     })
     levene <- leveneTest(respon ~ perlakuan, data = df)
     
@@ -235,7 +240,14 @@ server <- function(input, output, session) {
   
   output$ukuran_input <- renderUI({
     req(rv$valid)
-    selectInput("ukuran", "Ukuran Matriks:", choices = paste0(2:6, "x", 2:6))
+    jumlah_perlakuan <- length(unique(rv$data$perlakuan))
+    tabel <- table(rv$data$perlakuan)
+    if (length(unique(tabel)) == 1) {
+      ulangan <- unique(tabel)
+      helpText(paste0("Ukuran desain: ", jumlah_perlakuan, " perlakuan × ", ulangan, " ulangan (Total ", jumlah_perlakuan * ulangan, " data)"))
+    } else {
+      helpText("⚠️ Desain tidak seimbang: jumlah ulangan berbeda antar perlakuan.")
+    }
   })
   
   output$hipotesis <- renderText({ "H0: Tidak ada pengaruh perlakuan\nH1: Ada pengaruh perlakuan" })
