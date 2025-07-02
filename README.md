@@ -235,7 +235,18 @@ server <- function(input, output, session) {
     })
     
     rv$valid <- TRUE
-    output$validasi_output <- renderText("✅ Data valid. Lanjut ke tab Uji Hipotesis.")
+    if (any(table(df$perlakuan) < 3)) {
+      output$validasi_output <- renderText(
+        paste0(
+          "⚠️ Data valid, namun ada perlakuan dengan ulangan < 3.\n",
+          "👉 Uji normalitas tidak dapat dilakukan secara statistik.\n",
+          "📌 Jika peneliti meyakini data berdistribusi normal, uji ANOVA tetap dapat dilanjutkan.\n",
+          "→ Silakan lanjut ke tab Uji Hipotesis."
+        )
+      )
+    } else {
+      output$validasi_output <- renderText("✅ Data valid. Lanjut ke tab Uji Hipotesis.")
+    }
   })
   
   output$ukuran_input <- renderUI({
