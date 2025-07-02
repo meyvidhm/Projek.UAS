@@ -1,5 +1,3 @@
-# Projek.UAS
-Projek UAS Kelompok 6
 # ===============================
 # === LIBRARY
 # ===============================
@@ -38,6 +36,7 @@ ui <- dashboardPage(
     ),
     
     tabItems(
+      # TAB 1: Tentang RAL
       tabItem(tabName = "tentang",
               fluidRow(
                 column(width = 6,
@@ -104,6 +103,7 @@ ui <- dashboardPage(
               )
       ),
       
+      # TAB 2: Validasi
       tabItem(tabName = "validasi",
               fluidRow(
                 box(title = "Upload & Input", width = 4, status = "info",
@@ -122,6 +122,7 @@ ui <- dashboardPage(
               )
       ),
       
+      # TAB 3: Uji ANOVA
       tabItem(tabName = "uji",
               fluidRow(
                 box(title = "Uji ANOVA", width = 6, status = "primary",
@@ -136,6 +137,7 @@ ui <- dashboardPage(
               )
       ),
       
+      # TAB 4: Uji Lanjut
       tabItem(tabName = "lanjut",
               fluidRow(
                 box(title = "Hasil Uji Lanjut", width = 12,
@@ -151,20 +153,13 @@ ui <- dashboardPage(
 # === SERVER
 # ===============================
 server <- function(input, output, session) {
-  rv <- reactiveValues(data=NULL, hasil_anova=NULL, anova_p=NULL, valid=FALSE, kol_perl=NULL, kol_resp=NULL)
+  rv <- reactiveValues(data=NULL, hasil_anova=NULL, anova_p=NULL, valid=FALSE)
   
   observeEvent(input$datafile, {
     ext <- tools::file_ext(input$datafile$name)
-    if (ext == "csv") {
-      df <- read.csv(input$datafile$datapath)
-    } else if (ext %in% c("xls", "xlsx")) {
-      df <- read_excel(input$datafile$datapath)
-    } else {
-      return(NULL)
-    }
+    df <- if (ext == "csv") read.csv(input$datafile$datapath) else read_excel(input$datafile$datapath)
     rv$data <- df
     output$pilih_kolom <- renderUI({
-      req(rv$data)
       tagList(
         selectInput("kol_perlakuan", "Kolom Perlakuan:", choices = names(rv$data)),
         selectInput("kol_respon", "Kolom Respon:", choices = names(rv$data))
@@ -190,7 +185,6 @@ server <- function(input, output, session) {
   
   observeEvent(input$validasi_btn, {
     req(rv$data, input$kol_perlakuan, input$kol_respon)
-    
     if (input$kol_perlakuan == input$kol_respon || !is.numeric(rv$data[[input$kol_respon]])) {
       output$validasi_output <- renderText("❌ Respon harus numerik.")
       output$ringkasan_output <- renderPrint({})
@@ -200,33 +194,32 @@ server <- function(input, output, session) {
       return()
     }
     
-    df <- rv$data
-    perlakuan <- as.factor(df[[input$kol_perlakuan]])
-    respon <- df[[input$kol_respon]]
-    rv$data <- data.frame(perlakuan, respon)
-    
+    df <- data.frame(
+      perlakuan = as.factor(rv$data[[input$kol_perlakuan]]),
+      respon = rv$data[[input$kol_respon]]
+    )
+    rv$data <- df
     alpha <- input$alpha
-    tab <- table(perlakuan)
-    norm_res <- by(respon, perlakuan, function(x) {
+    norm_res <- by(df$respon, df$perlakuan, function(x) {
       if (length(unique(x)) == 1) return("Tidak bisa diuji")
       p <- shapiro.test(x)$p.value
       if (p > alpha) paste0("p = ", round(p, 4), " > ", alpha, " → ✅ Normal")
       else paste0("p = ", round(p, 4), " ≤ ", alpha, " → ⚠️ Tidak Normal")
     })
-    levene <- leveneTest(respon ~ perlakuan, data = rv$data)
+    levene <- leveneTest(respon ~ perlakuan, data = df)
+    
     output$ringkasan_output <- renderPrint({
-      print(tab)
+      print(table(df$perlakuan))
       print(norm_res)
       cat("Levene Test: p =", round(levene$`Pr(>F)`[1], 4))
     })
     
     output$tabel_kontingensi <- renderTable({
-      df <- rv$data %>% group_by(perlakuan) %>% mutate(Ulangan = row_number()) %>% ungroup()
-      dcast(df, Ulangan ~ perlakuan, value.var = "respon")
+      df %>% group_by(perlakuan) %>% mutate(Ulangan = row_number()) %>%
+        dcast(Ulangan ~ perlakuan, value.var = "respon")
     })
     
     output$boxplot_data <- renderPlot({
-      df <- rv$data
       boxplot(respon ~ perlakuan, data = df, col = "lightblue", main = "Boxplot Respon per Perlakuan",
               xlab = "Perlakuan", ylab = "Respon")
     })
@@ -250,34 +243,36 @@ server <- function(input, output, session) {
   })
   
   output$keputusan_output <- renderPrint({
-    if (rv$anova_p <= input$alpha) {
-      cat("Tolak H0: Ada pengaruh perlakuan.")
-    } else {
-      cat("Gagal tolak H0: Tidak ada pengaruh perlakuan.")
-    }
+    if (rv$anova_p <= input$alpha) cat("Tolak H0: Ada pengaruh perlakuan.")
+    else cat("Gagal tolak H0: Tidak ada pengaruh perlakuan.")
   })
   
   output$lanjut_uji <- renderUI({
     req(rv$anova_p <= input$alpha)
-    radioButtons("uji_lanjut", "Lakukan uji lanjut?", c("Tidak", "Iya"))
+    radioButtons("uji_lanjut", "Lakukan uji lanjut?", c("Tidak", "Ya"))
   })
   
   output$lanjut_isi <- renderUI({
-    req(input$uji_lanjut == "Iya")
-    tagList(
-      selectInput("jenis_uji", "Jenis Uji Lanjut:", choices = c("BNT", "BNJ", "Duncan", "SNK", "Scheffe")),
-      verbatimTextOutput("uji_lanjut_output")
-    )
+    req(rv$hasil_anova, rv$anova_p <= input$alpha)
+    if (input$uji_lanjut == "Ya") {
+      tagList(
+        selectInput("jenis_uji", "Jenis Uji Lanjut:", choices = c("BNT", "BNJ", "Duncan", "SNK", "Scheffe")),
+        verbatimTextOutput("uji_lanjut_output")
+      )
+    } else {
+      h4("Anda tidak memilih untuk uji lanjut.")
+    }
   })
   
-  output$uji_lanjut_output <- renderPrint({
-    switch(input$jenis_uji,
-           "BNT" = LSD.test(rv$hasil_anova, "perlakuan", p.adj = "none"),
-           "BNJ" = HSD.test(rv$hasil_anova, "perlakuan"),
-           "Duncan" = duncan.test(rv$hasil_anova, "perlakuan"),
-           "SNK" = SNK.test(rv$hasil_anova, "perlakuan"),
-           "Scheffe" = scheffe.test(rv$hasil_anova, "perlakuan")
-    )
+  observeEvent(input$jenis_uji, {
+    req(rv$hasil_anova, input$jenis_uji)
+    hasil <- switch(input$jenis_uji,
+                    "BNT" = LSD.test(rv$hasil_anova, "perlakuan", p.adj = "none"),
+                    "BNJ" = HSD.test(rv$hasil_anova, "perlakuan"),
+                    "Duncan" = duncan.test(rv$hasil_anova, "perlakuan"),
+                    "SNK" = SNK.test(rv$hasil_anova, "perlakuan"),
+                    "Scheffe" = scheffe.test(rv$hasil_anova, "perlakuan"))
+    output$uji_lanjut_output <- renderPrint({ hasil })
   })
 }
 
