@@ -134,8 +134,13 @@ ui <- dashboardPage(
                 box(title = "Lanjut ke Uji Lanjut?", width = 6,
                     uiOutput("lanjut_uji")
                 )
+              ),
+              fluidRow(
+                box(title = "Interpretasi Hasil ANOVA", width = 12, status = "success", solidHeader = TRUE,
+                    htmlOutput("interpretasi_anova")
+                )
               )
-      ),
+      ),  # ✅ ← koma yang diperlukan
       
       # TAB 4: Uji Lanjut
       tabItem(tabName = "lanjut",
@@ -238,13 +243,55 @@ server <- function(input, output, session) {
   output$anova_output <- renderPrint({
     hasil <- aov(respon ~ perlakuan, data = rv$data)
     rv$hasil_anova <- hasil
-    rv$anova_p <- summary(hasil)[[1]][["Pr(>F)"]][1]
-    print(summary(hasil))
+    
+    anova_table <- summary(hasil)[[1]]
+    rv$anova_p <- anova_table[["Pr(>F)"]][1]
+    rv$anova_f <- anova_table[["F value"]][1]
+    
+    cat("📊 Tabel ANOVA:\n")
+    print(anova_table)
+    
+    cat("\n📌 Nilai Statistik:\n")
+    cat("F-hitung :", round(rv$anova_f, 4), "\n")
+    cat("p-value  :", round(rv$anova_p, 5), "\n")
   })
+  
   
   output$keputusan_output <- renderPrint({
     if (rv$anova_p <= input$alpha) cat("Tolak H0: Ada pengaruh perlakuan.")
     else cat("Gagal tolak H0: Tidak ada pengaruh perlakuan.")
+  })
+  
+  output$interpretasi_anova <- renderUI({
+    req(rv$anova_p)
+    
+    if (rv$anova_p <= input$alpha) {
+      HTML(paste0("
+      <div style='padding:12px; background:#e3fcec; border-left:5px solid #2ecc71'>
+        <h4><b>✅ Kesimpulan:</b></h4>
+        <p>Terdapat <b>perbedaan yang signifikan</b> antara perlakuan (<i>p-value = ", round(rv$anova_p, 5), " < ", input$alpha, "</i>).</p>
+
+        <h4><b>📌 Interpretasi:</b></h4>
+        <p>Perlakuan yang diberikan <b>memiliki pengaruh nyata</b> terhadap nilai respon. Artinya, nilai rata-rata antar kelompok perlakuan tidak bisa dianggap sama, karena variasinya terlalu besar untuk dianggap sebagai kebetulan.</p>
+
+        <h4><b>💡 Saran:</b></h4>
+        <p>Lanjutkan ke <b>Uji Lanjut</b> untuk mengetahui pasangan perlakuan mana yang berbeda secara signifikan.</p>
+      </div>
+    "))
+    } else {
+      HTML(paste0("
+      <div style='padding:12px; background:#fdecea; border-left:5px solid #e74c3c'>
+        <h4><b>🚫 Kesimpulan:</b></h4>
+        <p>Tidak ditemukan perbedaan yang signifikan antar perlakuan (<i>p-value = ", round(rv$anova_p, 5), " ≥ ", input$alpha, "</i>).</p>
+
+        <h4><b>📌 Interpretasi:</b></h4>
+        <p>Perlakuan yang diberikan <b>tidak terbukti mempengaruhi</b> nilai respon secara statistik. Hasil respon antar perlakuan dianggap setara.</p>
+
+        <h4><b>💡 Saran:</b></h4>
+        <p>Tinjau kembali desain eksperimen atau coba uji pada variabel respon yang berbeda.</p>
+      </div>
+    "))
+    }
   })
   
   output$lanjut_uji <- renderUI({
@@ -280,3 +327,4 @@ server <- function(input, output, session) {
 # === APP
 # ===============================
 shinyApp(ui, server)
+
