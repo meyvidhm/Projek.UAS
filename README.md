@@ -314,7 +314,7 @@ server <- function(input, output, session) {
       HTML(paste0("
       <div style='padding:12px; background:#e3fcec; border-left:5px solid #2ecc71'>
         <h4><b>✅ Kesimpulan:</b></h4>
-        <p>Terdapat <b>perbedaan yang signifikan</b> antara perlakuan (<i>p-value = ", round(rv$anova_p, 5), " < ", input$alpha, "</i>).</p>
+        <p>Terdapat <b>perbedaan yang signifikan</b> antara perlakuan (<i>p-value = ", format(rv$anova_p, 5), " < ", input$alpha, "</i>).</p>
 
         <h4><b>📌 Interpretasi:</b></h4>
         <p>Perlakuan yang diberikan <b>memiliki pengaruh nyata</b> terhadap nilai respon. Artinya, nilai rata-rata antar kelompok perlakuan tidak bisa dianggap sama, karena variasinya terlalu besar untuk dianggap sebagai kebetulan.</p>
@@ -327,7 +327,7 @@ server <- function(input, output, session) {
       HTML(paste0("
       <div style='padding:12px; background:#fdecea; border-left:5px solid #e74c3c'>
         <h4><b>🚫 Kesimpulan:</b></h4>
-        <p>Tidak ditemukan perbedaan yang signifikan antar perlakuan (<i>p-value = ", round(rv$anova_p, 5), " ≥ ", input$alpha, "</i>).</p>
+        <p>Tidak ditemukan perbedaan yang signifikan antar perlakuan (<i>p-value = ", format(rv$anova_p, 5), " ≥ ", input$alpha, "</i>).</p>
 
         <h4><b>📌 Interpretasi:</b></h4>
         <p>Perlakuan yang diberikan <b>tidak terbukti mempengaruhi</b> nilai respon secara statistik. Hasil respon antar perlakuan dianggap setara.</p>
