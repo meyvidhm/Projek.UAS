@@ -1,6 +1,4 @@
 # ===============================
-# === LIBRARY
-# ===============================
 library(shiny)
 library(shinydashboard)
 library(readxl)
@@ -16,6 +14,7 @@ library(reshape2)
 ui <- dashboardPage(
   dashboardHeader(title = "Aplikasi RAL"),
   
+# SIDEBAR MENU  
   dashboardSidebar(
     sidebarMenu(
       menuItem("1. Tentang RAL", tabName = "tentang", icon = icon("info-circle")),
@@ -25,6 +24,7 @@ ui <- dashboardPage(
     )
   ),
   
+# ISI TIAP BAB
   dashboardBody(
     tags$head(
       tags$link(rel = "stylesheet", href = "https://fonts.googleapis.com/css2?family=Roboto&display=swap"),
@@ -117,6 +117,7 @@ ui <- dashboardPage(
                     verbatimTextOutput("validasi_output"),
                     verbatimTextOutput("ringkasan_output"),
                     tableOutput("tabel_kontingensi"),
+                    plotOutput("qqplot_data"),  # Tambahan: Q-Q Plot
                     plotOutput("boxplot_data")
                 )
               )
@@ -159,7 +160,8 @@ ui <- dashboardPage(
 # ===============================
 server <- function(input, output, session) {
   rv <- reactiveValues(data=NULL, hasil_anova=NULL, anova_p=NULL, valid=FALSE)
-  
+
+# DATA UPLOAD DAN PILIH KOLOM  
   observeEvent(input$datafile, {
     ext <- tools::file_ext(input$datafile$name)
     df <- if (ext == "csv") read.csv(input$datafile$datapath) else read_excel(input$datafile$datapath)
@@ -171,7 +173,8 @@ server <- function(input, output, session) {
       )
     })
   })
-  
+
+# CONTOH TABEL
   output$contoh_tabel_struktur <- renderTable({
     data.frame(
       Perlakuan = c(rep("Pupuk A", 3), rep("Pupuk B", 3), rep("Pupuk C", 3)),
@@ -188,6 +191,7 @@ server <- function(input, output, session) {
     )
   })
   
+# VALIDASI DATA
   observeEvent(input$validasi_btn, {
     req(rv$data, input$kol_perlakuan, input$kol_respon)
     if (input$kol_perlakuan == input$kol_respon || !is.numeric(rv$data[[input$kol_respon]])) {
@@ -251,6 +255,12 @@ server <- function(input, output, session) {
         dcast(Ulangan ~ perlakuan, value.var = "respon")
     })
     
+    output$qqplot_data <- renderPlot({
+      res <- residuals(lm(respon ~ perlakuan, data = df))
+      qqnorm(res, main = "Q–Q Plot Residuals", pch = 19, col = "darkblue")
+      qqline(res, col = "red", lwd = 2)
+    })
+    
     output$boxplot_data <- renderPlot({
       boxplot(respon ~ perlakuan, data = df, col = "lightblue", main = "Boxplot Respon per Perlakuan",
               xlab = "Perlakuan", ylab = "Respon")
@@ -285,6 +295,7 @@ server <- function(input, output, session) {
   
   output$hipotesis <- renderText({ "H0: Tidak ada pengaruh perlakuan\nH1: Ada pengaruh perlakuan" })
   
+#UJI ANOVA & INTERPRETASI
   output$anova_output <- renderPrint({
     hasil <- aov(respon ~ perlakuan, data = rv$data)
     rv$hasil_anova <- hasil
@@ -357,6 +368,7 @@ server <- function(input, output, session) {
     }
   })
   
+#UJI LANJUT & INTERPRETASI
   observeEvent(input$jenis_uji, {
     req(rv$hasil_anova, input$jenis_uji)
     hasil <- switch(input$jenis_uji,
@@ -451,14 +463,14 @@ server <- function(input, output, session) {
             }
           }
           
-         html_duncan <- paste0(
-  "<h4><b>📊 Tabel Perbandingan 1 vs 1 (Duncan)</b></h4>",
-  "<div style='overflow-x:auto;'>",
-  "<table style='border-collapse: separate; border-spacing: 10px 6px; width: 100%;'>",
-  "<thead style='background:#f2f2f2;'>",
-  "<tr><th>Pasangan</th><th>Selisih</th><th>Critical Range</th><th>Berbeda Nyata?</th></tr>",
-  "</thead><tbody>"
-)
+          html_duncan <- paste0(
+            "<h4><b>📊 Tabel Perbandingan 1 vs 1 (Duncan)</b></h4>",
+            "<div style='overflow-x:auto;'>",
+            "<table style='border-collapse: separate; border-spacing: 10px 6px; width: 100%;'>",
+            "<thead style='background:#f2f2f2;'>",
+            "<tr><th>Pasangan</th><th>Selisih</th><th>Critical Range</th><th>Berbeda Nyata?</th></tr>",
+            "</thead><tbody>"
+          )
           for (k in 1:nrow(pasangan_tbl)) {
             html_duncan <- paste0(html_duncan,
                                   "<tr>",
@@ -547,13 +559,13 @@ server <- function(input, output, session) {
       }
       
       table_html <- paste0(
-  "<h4><b>📊 Tabel Perbandingan Antar Perlakuan</b></h4>",
-  "<div style='overflow-x:auto;'>",
-  "<table style='border-collapse: separate; border-spacing: 10px 6px; width: 100%;'>",
-  "<thead style='background:#f2f2f2;'>",
-  "<tr><th>Pasangan</th><th>Selisih</th><th>Nilai Kritis</th><th>Berbeda Nyata?</th></tr>",
-  "</thead><tbody>"
-)
+        "<h4><b>📊 Tabel Perbandingan Antar Perlakuan</b></h4>",
+        "<div style='overflow-x:auto;'>",
+        "<table style='border-collapse: separate; border-spacing: 10px 6px; width: 100%;'>",
+        "<thead style='background:#f2f2f2;'>",
+        "<tr><th>Pasangan</th><th>Selisih</th><th>Nilai Kritis</th><th>Berbeda Nyata?</th></tr>",
+        "</thead><tbody>"
+      )
       for (k in 1:nrow(tbl)) {
         table_html <- paste0(table_html,
                              "<tr>",
@@ -596,4 +608,3 @@ server <- function(input, output, session) {
   })
 }
 shinyApp(ui, server)
-
