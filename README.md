@@ -544,10 +544,13 @@ server <- function(input, output, session) {
       }
       
       table_html <- paste0(
-        "<h4><b>📊 Tabel Perbandingan Antar Perlakuan</b></h4>",
-        "<table border='1' cellspacing='0' cellpadding='6'>",
-        "<tr style='background:#f2f2f2'><th>Pasangan</th><th>Selisih</th><th>Nilai Kritis</th><th>Berbeda Nyata?</th></tr>"
-      )
+  "<h4><b>📊 Tabel Perbandingan Antar Perlakuan</b></h4>",
+  "<div style='overflow-x:auto;'>",
+  "<table style='border-collapse: separate; border-spacing: 10px 6px; width: 100%;'>",
+  "<thead style='background:#f2f2f2;'>",
+  "<tr><th>Pasangan</th><th>Selisih</th><th>Nilai Kritis</th><th>Berbeda Nyata?</th></tr>",
+  "</thead><tbody>"
+)
       for (k in 1:nrow(tbl)) {
         table_html <- paste0(table_html,
                              "<tr>",
