@@ -298,7 +298,7 @@ server <- function(input, output, session) {
     
     cat("\n📌 Nilai Statistik:\n")
     cat("F-hitung :", round(rv$anova_f, 4), "\n")
-    cat("p-value  :", round(rv$anova_p, 5), "\n")
+    cat("p-value  :", format(rv$anova_p, 5), "\n")
   })
   
   
