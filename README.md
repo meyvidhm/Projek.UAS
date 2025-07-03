@@ -383,6 +383,36 @@ server <- function(input, output, session) {
       
       perlakuan <- names(means)
       
+      # Interpretasi khusus untuk SNK dan Scheffe (tanpa tabel 1 vs 1)
+      if (input$jenis_uji %in% c("SNK", "Scheffe")) {
+        grup <- hasil$groups
+        grup <- grup[order(grup$groups), , drop = FALSE]
+        
+        teks_grup <- paste0(
+          "<h4><b>📌 Interpretasi Hasil Uji ", input$jenis_uji, "</b></h4>",
+          "<p>Perlakuan dikelompokkan berdasarkan huruf yang <b>berbeda</b>. Jika dua perlakuan memiliki huruf berbeda, maka <b>berbeda signifikan</b>.</p>",
+          "<ul>"
+        )
+        for (i in 1:nrow(grup)) {
+          teks_grup <- paste0(teks_grup, "<li><b>", rownames(grup)[i], "</b> (rata-rata = ", round(grup$respon[i], 3),
+                              ") → grup <b>", grup$groups[i], "</b></li>")
+        }
+        teks_grup <- paste0(teks_grup, "</ul>")
+        
+        terbaik <- rownames(grup)[which.max(grup$respon)]
+        saran <- paste0(
+          "<h4><b>✅ Saran:</b></h4>",
+          "<p>Perlakuan <b>", terbaik, "</b> memiliki rata-rata tertinggi dan termasuk dalam grup signifikan tertinggi. Ini bisa dipilih sebagai perlakuan terbaik <i>(jika berbeda nyata dari yang lain).</i></p>"
+        )
+        
+        return(HTML(paste0(
+          "<div style='padding:10px; background:#f0f8ff; border-left:5px solid #3498db'>",
+          teks_grup,
+          saran,
+          "</div>"
+        )))
+      }
+      
       # Interpretasi khusus Duncan
       if (input$jenis_uji == "Duncan") {
         means_duncan <- hasil$means
